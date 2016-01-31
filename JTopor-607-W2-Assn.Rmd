@@ -1,0 +1,99 @@
+---
+title: "DATA 607 Week 2 Assignment"
+author: "James Topor"
+date: "January 30, 2016"
+output: html_document
+---
+
+This script reads a .csv file containing a public data set. The data set contains information on hepatitis patients. After reading the csv into a dataframe, 7 specific columns of the data are used to create a new data frame. The specific columns to be used were selected using the online data definition information given at 
+
+https://archive.ics.uci.edu/ml/machine-learning-databases/hepatitis/hepatitis.names  
+
+The location of the csv data is:    
+https://archive.ics.uci.edu/ml/machine-learning-databases/hepatitis/hepatitis.data  
+
+
+### Refinement of the Data Set  
+
+After loading the dataset into a dataframe, 7 specific columns of the data set are used to create a new data frame. These columns contain values for the following flight attributes:
+
+Col  1: __Die or Live__ - a categorical variable: 1 = died; 2 = lived  
+Col  2: __Age__ - A discrete numeric variable representing a patient's age  
+Col  3: __Sex__ - A categorical variable: 1 = male; 2 = female  
+Col  5: __Antivirals__ - A categorical variable indicating whether the patient received antiviral treatments: 1 = no; 2 = yes  
+Col  6: __Fatigue__ -  A categorical variable indicating whether the patient reported symptoms of fatigue during treatment: 1 = no; 2 = yes  
+Col  7: __Malaise__ - A categorical variable indicating whether the patient reported symptoms of malaise during treatment: 1 = no; 2 = yes  
+Col 11: __Spleen Palpable__ - A categorical variable indicating whether the patient's spleen was deemed by medical staff to be palpable during treatment: 1 = no; 2 = yes  
+
+  
+The specific columns to be used were selected using the online data definition information cited above.  
+
+Once the dataframe containing the 7 specific columns has been created, we then apply R's __gsub__ function to convert the categorical values of '1' and '2' into more meaningful/understandable values. For example, the numeric values of the variable __die or live__ are converted to "D" for died and "L" for lived. Similarly, the numeric values of the __sex__ variable are converted to "M" for male and "F" for female, etc.
+
+After the categorical values have been converted to more meaningful values, two new dataframes are created using R's __subset__ function to select specific rows from the broader data set.
+
+```{r}
+# read the csv data into a dataframe. NOTE: The data has no header info
+hepcsv <- read.csv("https://archive.ics.uci.edu/ml/machine-learning-databases/hepatitis/hepatitis.data", header = FALSE, stringsAsFactors = FALSE)
+
+str(hepcsv)
+head(hepcsv)
+
+
+# create a data frame using the 'die or live', 'age', 'sex', 'antivirals', 'fatigue', 'malaise', and 'spleen_palpable' attributes
+# These attributes are found in cols 1, 2, 3, 5, 6, 7, and 11 of input file data
+
+hepdf <- data.frame(as.character(hepcsv$V1), 
+                    hepcsv$V2, 
+                    as.character(hepcsv$V3), 
+                    as.character(hepcsv$V5), 
+                    hepcsv$V6, 
+                    hepcsv$V7, 
+                    hepcsv$V11, stringsAsFactors = FALSE)
+
+str(hepdf)
+
+# rename columns to match full attribute names
+names(hepdf)
+
+names(hepdf)<-c("Die_Live","Age", "Sex", "Antivirals", "Fatigue", "Malaise", "Spleen_palp")
+
+names(hepdf)
+
+
+# change Live_Die values 1 = "D", 2 = "L"
+hepdf$Die_Live <- gsub('^1$', 'D', hepdf$Die_Live)
+hepdf$Die_Live <- gsub('^2$', 'L', hepdf$Die_Live)
+
+# change Sex values 1 = "M", 2 = "F"
+hepdf$Sex <- gsub('^1$', 'M', hepdf$Sex)
+hepdf$Sex <- gsub('^2$', 'F', hepdf$Sex)
+
+# change Antivirals values 1 = "N", 2 = "Y"
+hepdf$Antivirals <- gsub('^1$', 'N', hepdf$Antivirals)
+hepdf$Antivirals <- gsub('^2$', 'Y', hepdf$Antivirals)
+
+# change Fatigue values 1 = "N", 2 = "Y"
+hepdf$Fatigue <- gsub('^1$', 'N', hepdf$Fatigue)
+hepdf$Fatigue <- gsub('^2$', 'Y', hepdf$Fatigue)
+
+# change Malaise values 1 = "N", 2 = "Y"
+hepdf$Malaise <- gsub('^1$', 'N', hepdf$Malaise)
+hepdf$Malaise <- gsub('^2$', 'Y', hepdf$Malaise)
+
+# change Spleen_palp values 1 = "N", 2 = "Y"
+hepdf$Spleen_palp <- gsub('^1$', 'N', hepdf$Spleen_palp)
+hepdf$Spleen_palp <- gsub('^2$', 'Y', hepdf$Spleen_palp)
+
+head(hepdf)
+
+# create a data frame containing only those patients that died over the age of 40
+dead_hepdf <- subset(hepdf, Die_Live == "D" & Age >= 40)
+str(dead_hepdf)
+head(dead_hepdf)
+
+# create a data frame containing only those patients that lived but reported malaise
+LM_hepdf <- subset(hepdf, Die_Live == "L" & Malaise == "Y")
+str(LM_hepdf)
+head(LM_hepdf)
+```
