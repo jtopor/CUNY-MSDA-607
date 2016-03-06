@@ -1,0 +1,269 @@
+---
+title: "CUNY MSDA 607 Week 6 Assignment"
+author: "James Topor"
+date: "February 27, 2016"
+output:
+        html_document:
+          theme: spacelab
+          highlight: tango
+---
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+# load required packages
+library(tidyr, warn.conflicts = FALSE, quietly=TRUE)
+library(dplyr, warn.conflicts = FALSE, quietly=TRUE)
+library(knitr, warn.conflicts = FALSE, quietly=TRUE)
+```
+
+The purpose of this R script is to read a .csv file containing a small "untidy" set of airline arrival delay data and use the R packages __tidyr__ and __dplyr__ to rearrange the data into a "tidy" format. Once the data has been tidied, the arrival delays of the airlines contained therein are analyzed to determine which of them had the better on time arrival record  for each of the destinations listed in the data. Each airline's overall on time arrival record is also calculated and the airlines are then ranked in descending order according to their on time arrival records.
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+### Exploring the Airline Arrival Data
+
+We'll start by loading the __tidyr__ and __dplyr__ packages and reading and displaying the unitidy data from the .csv file. The .csv file itself is located at a publically accessible Github.com page:
+
+```{r, message=FALSE, warning=FALSE}
+flt_df <- read.csv("https://raw.githubusercontent.com/jtopor/CUNY-MSDA-607/master/Week%206/wk6flightinfo.csv", header = TRUE, stringsAsFactors = FALSE)
+kable(flt_df, , padding = 0)
+```
+
+The display of the untidy data shows that while the data have an obvious structure, there are several characteristics we need to be concerned with:
+
+1. The loading of the data from the .csv file has produced a data frame that lacks meaningful column headings for the first two columns.
+
+2. The names of the airlines are provided in the first column, but are not enumerated across the entirety of the rows they apply to. For example, the first row of data lists 'ALASKA' as the airline that the data in that row pertain to. However, the data in the second row also appear to pertain to 'ALASKA' but that row lacks any actual identifier for an airline. This creates an issue when attempting to transform the data using R's tidying functions since those functions expect the columns and rows they are working with to hold a complete set of attributes for each of the relevant variables.
+
+3. The third row contains no data at all.
+
+4. The column headings for columns 3 through 7 are the names of cities, while the content of those columns are counts of on time and delayed flights for each airline. The goal of "tidy data" is to have each column represent a single variable, and each row represent a single observation, while the elements within each column represent values assigned to the variables indicated by the column names for any given observation. Therefore, the city column headings do not accurately describe the data contained within the columns. In fact, the city names themselves are *values* pertaining to an observation. 
+
+5. In the second column the phrases 'on time' and 'delayed' refer to the flight counts that populate columns 3 through 7 of their respective rows. In fact, the flight counts are *values* assigned to variables named 'on time' and 'delayed'. Therefore, the labels 'on time' and 'delayed' should be used as individual column names rather than repeated entries within a single column.
+
+6. If we were to attempt to transform the data such that the terms 'on time' and 'delayed' from the second column were made into column names, the term 'on time' would not conform to R's data object naming requirements due to the presence of a blank space between the words 'on' and 'time'. Therefore, the phrase 'on time' needs to be altered to conform to R's object naming standards.
+
+We'll need to address each of these items prior to any attempt to calculate on time performance metrics for the individual airlines. 
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+### Tidying the Airline Arrival Data
+
+We'll start by applying meaningful column names to the first two columns and by changing the phrase 'on time' in column 2 to 'OnTime':
+```{r}
+# rename cols 1 and 2 to meaningful names: Airline and ArrDelay
+colnames(flt_df)[1] <- "Airline"
+colnames(flt_df)[2] <- "ArrDelay"
+
+# change on time to OnTime
+flt_df$ArrDelay[flt_df$ArrDelay == "on time"]  <- "OnTime"
+kable(flt_df, padding = 0)
+```
+
+For columns three through seven, we can make use of the __gather__ function to transform the city names into values within a column named "City" while converting the on time and delayed arrival counts to values within a column named "Count". The __gather__ function can also remove any blank rows from the data:
+```{r}
+# column headers with city names are VALUES, not VARIABLE NAMES. So we need to create a column containing 
+# city names, and another column in which the counts of on time and delayed arrivals are transferred to
+# This gather() statement produces a new data frame Ordered by City, then Airline
+flt_df2 <- gather(flt_df, City, Count, Los.Angeles:Seattle, na.rm = TRUE)
+kable(flt_df2, padding = 0)
+```
+
+We've now addressed 4 of the 6 concerns identified above (items 1, 3, 4, and 6). Item 2 requires us to fill in missing values for the airline name within the second column:
+```{r}
+# fill in missing Airline names in data
+for(i in seq(from = 2, to = nrow(flt_df2), by=2) ) {
+  flt_df2$Airline[i] = flt_df2$Airline[i - 1]
+}
+kable(flt_df2, padding = 0)
+```
+
+For the final item (item 5), we'll make use of R's __spread__ function to transform the "OnTime" and "delayed" values within the 'ArrDelay' column into column headings. The values of the two new columns will be populated with the count values contained within the existing 'Count' column. The revised data frame will no longer have a column named 'Count' but will have two new columns named "OnTime" and "delayed":
+```{r}
+# ArrDelay Column content is a VARIABLE NAME, NOT A VALUE, so we need to 'spread' it and use the content
+# of the 'Count' variable for the contents of the 2 new columns. The 'Count' variable disappears as a result
+# The spread() statement produces a new data  frame ordered by Airline, City
+flt_df3 <- spread(flt_df2, ArrDelay, Count)
+kable(flt_df3, padding = 0)
+```
+
+As we can see, the resulting data frame is tidy: each column contains values for a single variable, and each row represents a single observation (airline name, arrival city, number of flights delayed, number of flights arriving on time). The data are ordered first by airline name, then by city name. While not needed for purposes of calculating the required arrival metrics, we can, if we choose, reorder the contents of the data frame so that they are sorted first by city name, then by airline name. Such an ordering makes it more visually convenient to compare the raw on time and delayed flight counts for each airline at a given destination city:
+```{r}
+# sort by City
+flt_df4 <- arrange(flt_df3, City, Airline)
+kable(flt_df4, padding = 0)
+```
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+### Analyzing the Airline Arrival Data
+
+Now that the data is in tidy format, we can begin the required analysis of on time arrival performance for each airline. We'll start by making us of R's __mutate__ function to calculate both the total number of flights each airline flew to the individual destination cities and the proportion of such flights that arrived on time. The results of these calculations will be appended to the existing data frame in the form of two new columns: 'TotalFlights' and 'PercentOnTime':
+```{r}
+# compute percentage of flights delayed
+# need to sum 'on time' + 'delayed' and divide 'on time' by sum to get percent on time
+# use mutate function
+
+flt_df5 <- mutate(flt_df4, TotalFlights = delayed + OnTime, PercentOnTime = OnTime / TotalFlights)
+kable(flt_df5, padding = 0)
+
+```
+
+Having previously sorted the data by city name, we can now easily compare the on time performance metrics for each destination via the table shown above. We can also create a graphical representation of those metrics:
+
+```{r, echo=FALSE}
+# -------------------------------------------------------------------------
+# make a barplot of the results by city
+
+# ------------------------------------------------------------
+# NOTE: The basic framework for this code segment comes from:
+# http://onertipaday.blogspot.com/2007/05/barplots-of-two-sets.html
+# The framework outlined therein was modified and extended to accommodate the specific
+# graphing requirements of this assignment.
+# ------------------------------------------------------------
+
+# create vectors containing ONLY PercentOnTime
+x <- round(filter(flt_df5, PercentOnTime, Airline == 'ALASKA')$PercentOnTime, 2)
+y <- round(filter(flt_df5, PercentOnTime, Airline == 'AMWEST')$PercentOnTime, 2)
+
+# create a two row matrix with x and y
+height <- rbind(x, y)
+
+# Plot the on time arrival rates side-by-side
+colors <- c("darkblue", "red")
+
+mp <- barplot(height, beside = TRUE, 
+              ylim = c(0, 1), 
+              names.arg = unique(flt_df5$City),
+              main="On Time Flight Arrival Rates By Destination",
+              ylab="Proportion of On Time Arrivals",
+              col = colors,
+              args.legend = list(x = "topright", cex = .5) )
+
+# format the legend
+legend("topright", 
+       inset=c(0,0),
+       ncol = 2,
+       cex = .5,
+       legend = c("ALASKA", "AMWEST"), 
+       fill = c("darkblue", "red"))
+
+# write the percentage values above the individual bars in the plot
+text(mp, height, labels = format(height, 4),
+     pos = 3, cex = .6)
+```
+
+As we can see in the plot shown above, Alaska Airlines had a better on time arrival record than AMWest Airlines at each of the indicated destination cities. However, the data we've been provided offer no insight into why that might be the case. For example, does Alaska Airlines build in a larger amount of airtime or ground time into its published flight times than does AMWest? If so, that might allow Alaska Airlines to more easily record an on time arrival for any given flight. Or does AMWest fly out of departure cities that typically experience a large amount of ground holds prior to takeoff than does Alaska Airlines? In other words, there may be any number of confounding variables that account for AMWest's relatively weaker on time arrival performance for the indicated cities. Therefore, we shouldn't try to draw any definitive conclusions from these metrics.
+
+One other metric we can examine is the overall on time arrival performance for each airline across all of the indicated cities. To calculate this metric we need the sum of all flights and the sum of all on time arrivals for each airline. We can then use those two sums to calculate the overall proportion of on time arrivals for each airline.
+
+As a first step toward finding the overall on time arrival performance for each airline we can make use of __dplyr__'s __filter__ function to isolate the records of each individual airline.  We then use the __summarise__ function to sum the number of on time arrivals at each destination city and the total number of flights to those cities:
+
+```{r}
+
+# isolate the observations for each airline
+AMWest <- filter(flt_df5, Airline == 'AMWEST')
+Alaska <- filter(flt_df5, Airline == 'ALASKA')
+
+# summarise the relevant variables for each airline
+AMW_sum <- summarise(AMWest, TotalOnTime = sum(OnTime), TotalFlightsAllDests = sum(TotalFlights))
+kable(AMW_sum, padding = 0)
+
+Alaska_sum <- summarise(Alaska, TotalOnTime = sum(OnTime), TotalFlightsAllDests = sum(TotalFlights))
+kable(Alaska_sum, padding = 0)
+```
+
+Now we can again make use of R's __mutate__ command to calculate the overall on time arrival rates for each airline.
+
+Let's start with AMWest airlines:
+```{r, echo=FALSE}
+AMW_final <- mutate(AMW_sum, PercentOnTime = TotalOnTime / TotalFlightsAllDests)
+kable(AMW_final, padding = 0)
+```
+
+And now Alaska Airlines:
+```{r, echo=FALSE}
+Alaska_final <- mutate(Alaska_sum, PercentOnTime = TotalOnTime / TotalFlightsAllDests)
+kable(Alaska_final, padding = 0)
+
+# -------------------------------------------------------------------------
+# make a barplot of the results by airline
+
+# ------------------------------------------------------------
+# NOTE: The basic framework for this code segment comes from:
+# http://onertipaday.blogspot.com/2007/05/barplots-of-two-sets.html
+# The framework outlined therein was modified and extended to accommodate the specific
+# graphing requirements of this assignment.
+# ------------------------------------------------------------
+
+# create vectors containing ONLY PercentOnTime
+x <- round(Alaska_final$PercentOnTime, 2)
+y <- round(AMW_final$PercentOnTime, 2)
+
+# create a two row matrix with x and y
+height <- rbind(x, y)
+
+# Plot the on time arrival rates side-by-side
+colors <- c("darkblue", "red")
+
+# create a vector containing values to be plotted
+rel_percs <- c(Alaska_final$PercentOnTime, AMW_final$PercentOnTime)
+
+mp <-barplot(rel_percs, names.arg = c("Alaska", "AMWest"), ylim = c(0, 1), 
+             main = 'Airline Overall On Time Flight Arrival Rates', col = colors)
+
+# print the individual proportions above the bars
+text(mp, height, labels = format(height, 4),
+     pos = 3, cex = .6)
+```
+
+As we can see, the overall on time arrival rate for AMWest is better than that of Alaska Airlines, despite the fact that Alaska Airlines had better on time arrival statistics at each of the individual destination cities. This is due to the fact that AMWest flew nearly double the total number of flights to the indicated destination cities than did Alaska Airlines while having its best on time arrival performance (92%) for the destination at which it flew nearly 73% of its total overall flights: as we can see, Phoenix comprised 5255 of AMWest's 7225 total flights. The relatively large number of ontime arrivals AMWest had for that one destination (4840) serves to skew its overall performance metric higher than it would be otherwise.
+
+Therefore, this data serves as a great reminder of how we often need to look beyond simple statistical averages when trying to compare different populations: if the populations are of vastly different size, our initial comparison conclusions based solely on statistical averages might prove to be misleading.
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+### Tidying the Airline Data via 'Chaining'
+
+The foregoing discussion of our efforts to transform and analyze the airline on time arrival data made use of an overt 'step-by-step' approach wherein we explained each step in detail before continuing on to the next step. The benefit to that approach is that it allows us to explain in detail each of the data transformation and calculation steps. However, the downside to that approach is that it requires the use of multiple memory-consuming data frames. If we aren't required to provide such a detailed textual discussion of the steps required to tidy the data, we can instead make use of R's '%>%' chaining macro to decrease the amount of R code required and limit the data transformations to a single data frame. 
+
+To show how 'chaining' might be implemented for the airline on time arrival data, we re-code the above R commands:
+```{r}
+# define a function to fill in missing Airline names in data
+name_fill <- function(df) {
+  for(i in seq(from = 2, to = nrow(df), by=2) ) {
+    df$Airline[i] = df$Airline[i - 1]
+  }
+  return(df)
+}
+
+# ---------------------------------------
+# primary segment of chaining code
+
+# read the flight data
+flt_df <- read.csv("c:/SQLData/wk6flightinfo.csv", header = TRUE, stringsAsFactors = FALSE)
+
+# rename cols 1 and 2 to meaningful names: Airline and ArrDelay
+colnames(flt_df)[1] <- "Airline"
+colnames(flt_df)[2] <- "ArrDelay"
+
+# change 'on time' to 'OnTime'
+flt_df$ArrDelay[flt_df$ArrDelay == "on time"]  <- "OnTime"
+
+# now chain the remaining data tidying functions:
+flt_dfchain <- flt_df %>% 
+  gather(City, Count, Los.Angeles:Seattle, na.rm = TRUE) %>%
+  name_fill() %>%
+  spread(ArrDelay, Count) %>%
+  arrange(City, Airline) %>%
+  mutate(TotalFlights = delayed + OnTime, PercentOnTime = OnTime / TotalFlights)
+
+# display the output of the chained function calls
+kable(flt_dfchain, padding = 0)
+```
+
+We can now perform a boolean test to ensure that the results of our chaining code are identical to those of the step-by-step process we used earlier:
+```{r}
+# check to ensure the results of chaining are identical to those of the step-by-step process
+kable(flt_dfchain == flt_df5, padding = 0)
+```
+
+As we can see, the result we've obtained via chaining is identical to what we obtained above during our step-by-step data tidying efforts. However, instead of making use of four separate additional data frames subsequent to loading the data, we've made use of only one additional data frame. 
