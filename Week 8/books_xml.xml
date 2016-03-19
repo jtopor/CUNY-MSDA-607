@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<!DOCTYPE books>
+<books>
+	<book id="1">
+		<title>Security Analysis, Sixth Edition</title>
+		<author>Benjamin Graham, David L. Dodd</author>
+		<topics>Investment Strategy, Stocks, Corporate Finance, Financial Analysis, Value Investing</topics>
+		<publisher>McGraw-Hill Education</publisher>
+		<ISBN>978-0071592536</ISBN>
+		<NumPages>700</NumPages>
+	</book>
+	
+	<book id="2">
+		<title>A Random Walk Down Wall Street, Ninth Edition</title>
+		<author>Burton G. Malkiel</author>
+		<topics>Investment Strategy, Financial Analysis, Retirement Planning, Portfolio Management</topics>
+		<publisher>W. W. Norton and Company</publisher>
+		<ISBN>978-0393330335</ISBN>
+		<NumPages>464</NumPages>
+	</book>
+	
+	<book id="3">
+		<title>Financial Management: Theory and Practice, 14th Edition</title>
+		<author>Eugene F. Brigham, Michael E. Ehrhardt</author>
+		<topics>Corporate Finance, Financial Management, Financial Analysis, Cost of Capital, Capital Structure</topics>
+		<publisher>South-Western College Publishing</publisher>
+		<ISBN>978-1111972202</ISBN>
+		<NumPages>1200</NumPages>
+	</book>	
+</books>
