@@ -1,0 +1,152 @@
+---
+title: "CUNY MSDA 607 Week 8 Assignment"
+author: "James Topor"
+date: "March 12, 2016"
+output:
+        html_document:
+          theme: spacelab
+          highlight: tango
+---
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+For this assignment we are asked to three books related to the same subject, at least one of which must have more than one author. For each book, we were asked to include the title, authors, and two or three other attributes and then create three files which store the book’s information in HTML (using an html table), XML, and JSON formats. Using those three files, we are then asked to use R to load the information from each into separate R data frames.
+
+The unformatted text version of the information for the three selected books is provided here:
+
+__Book 1__  
+
+Title     : Security Analysis, Sixth Edition  
+Authors   : Benjamin Graham, David L. Dodd    
+Topics    : Investment Strategy, Stocks, Corporate Finance, Financial Analysis, Value Investing  
+Publisher : McGraw-Hill Education   
+ISBN      : 978-0071592536    
+NumPages  : 700   
+
+
+__Book 2__  
+Title     : A Random Walk Down Wall Street, Ninth Edition  
+Author    : Burton G. Malkiel  
+Topics    : Investment Strategy, Financial Analysis, Retirement Planning, Portfolio Management  
+Publisher : W. W. Norton and Company  
+ISBN      : 978-0393330335  
+NumPages  : 464  
+
+__Book 3__  
+Title     : Financial Management: Theory and Practice, 14th Edition  
+Authors   : Eugene F. Brigham, Michael E. Ehrhardt  
+Topics    : Corporate Finance, Financial Management, Financial Analysis, Cost of Capital, Capital Structure  
+Publisher : South-Western College Publishing  
+ISBN      : 978-1111972202  
+NumPages  : 1200  
+
+The formatted HTML, XML, and JSON files containing this information can be viewed at the following Github links:
+
+__HTML Version__  
+The HTML version can be found at the following Github page: https://raw.githubusercontent.com/jtopor/CUNY-MSDA-607/master/Week%208/books_htmltable.html
+
+However, for some reason R is unable to read that HTML content in an automated fashion without producing an error. There seems to be some sort of unknown file reformatting introduced when the raw HTML file is uploaded to the Github web site. 
+
+The raw HTML file can be read without any problem if you copy it to your local hard drive and update the file path in the call to the __readHTMLTable__ function provided below. 
+
+__XML Version__  
+https://raw.githubusercontent.com/jtopor/CUNY-MSDA-607/master/Week%208/books_xml.xml
+
+__JSON Version__  
+https://raw.githubusercontent.com/jtopor/CUNY-MSDA-607/master/Week%208/books.json
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+## Loading the HTML Version of the Data
+
+We'll make use of the __XML__ package's __readHTMLTable__ function for purposes of loading the HTML version of the book data. R's __as.data.frame__ function is then used to convert the output of the __readHTMLTable__ function to an R data frame. The columns of that data frame are then assigned meaningful names. Finally, __knitr__'s __kable__ function is used to display the data frame contents in table format.
+```{r}
+library(XML)
+library(RCurl)
+library(knitr)
+
+# ---------------------------------------------------
+# Read HTML version of book data and load into a data frame
+
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! IMPORTANT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# UPDATE FILE PATH IN THE CALL TO THE readHTMLTable FUNCTION GIVEN BELOW TO MATCH THE PATH ON YOUR LOCAL MACHINE AFTER YOU'VE DOWNLOADED THE RAW HTML FILE FROM
+# https://raw.githubusercontent.com/jtopor/CUNY-MSDA-607/master/Week%208/books_htmltable.html INTO A DIRECTORY ON YOUR LOCAL MACHINE
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! IMPORTANT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+books.h <- readHTMLTable("C:/SQLData/books_htmltable.html")
+books.h
+
+# convert output of readHTMLTable function to a data frame
+bookh.df <- as.data.frame(books.h)
+
+# rename column headings
+colnames(bookh.df) <- c("Title", "Author", "Topics", "Publisher", "ISBN", "NumPages")
+
+# display data frame
+kable(bookh.df)
+
+```
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+## Loading the XML Version of the Data
+
+We'll make use of the __XML__ package's __xmlParse__ function for purposes of loading the HTML version of the book data. The __xmlToDataFrame__ function is then used to convert the output of the __xmlParse__ function to an R data frame. The columns of that data frame are then assigned meaningful names. Finally, __knitr__'s __kable__ function is used to display the data frame contents in table format.
+
+```{r}
+# Read XML version of book data and load into a data frame
+
+fileURL <- "https://raw.githubusercontent.com/jtopor/CUNY-MSDA-607/master/Week%208/books_xml.xml"
+xData <- getURL(fileURL)
+books.x <- xmlParse(xData)
+
+# books.x <- xmlParse(file = "C:/SQLData/books_xml.xml")
+
+class(books.x)
+books.x
+
+# get the root of the XML doc
+root <- xmlRoot(books.x)
+
+# create a data frame from the xml data
+bookx.df <- xmlToDataFrame(root)
+
+# rename column headings
+colnames(bookx.df) <- c("Title", "Author", "Topics", "Publisher", "ISBN", "NumPages")
+
+# display data frame
+kable(bookx.df)
+```
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+## Loading the JSON Version of the Data
+
+We'll make use of the __RJSONIO__ package's __fromJSON__ function for purposes of loading the HTML version of the book data. The __lapply__ function is then used to convert the output of the __fromJSON__ function to an R data frame. The columns of that data frame are then assigned meaningful names. Finally, __knitr__'s __kable__ function is used to display the data frame contents in table format.
+
+```{r}
+# Read JSON version of book data and load into a data frame
+
+# load required JSON R package
+library(RJSONIO)
+
+# check validity of JSON file
+isValidJSON("https://raw.githubusercontent.com/jtopor/CUNY-MSDA-607/master/Week%208/books.json")
+
+# read JSON file into an R object
+books.j <- fromJSON(content = "https://raw.githubusercontent.com/jtopor/CUNY-MSDA-607/master/Week%208/books.json", simplify = FALSE)
+books.j
+
+# convert output of readHTMLTable function to a data frame
+# this line of code is sourced from page 74 of "Automated Data Collection With R"
+bookj.df <- do.call("rbind", lapply(books.j$books, data.frame, stringsAsFactors = FALSE))
+
+# rename column headings
+colnames(bookj.df) <- c("Title", "Author", "Topics", "Publisher", "ISBN", "NumPages")
+
+# display data frame
+kable(bookj.df)
+
+```
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+As we can see, each of the three data frames are, in fact, identical despite the fact that they were extracted from files created in three different formats.
