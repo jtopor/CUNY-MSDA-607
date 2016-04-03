@@ -1,0 +1,145 @@
+---
+title: "CUNY MSDA 607 Week 10 Assignment"
+author: "James Topor"
+date: "March 26, 2016"
+output:
+        html_document:
+          theme: spacelab
+          highlight: tango
+---
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+For this assignment we are asked to choose one of the New York Times APIs, construct an interface in R to read in the JSON data provided via the API, and transform it into an R dataframe. The "Article Search" API was selected from the list of available API's provided on the New York Times website:
+
+- http://developer.nytimes.com/docs/read/article_search_api_v2
+
+The API description provides us with a detailed overview of the various tools a developer can use to access New York Times article data from as far back as Sept. 18, 1851. Developers have access to many components and attributes of any given article, including headlines, abstract, lead paragraphs, publication dates, word counts, and other metadata.
+
+To make use of the API a developer is required to register on the NY Times website and request an "API Key", which is basically a unique identifier and passcode that will allow the developer to access data stored within the NY Times website via an application that they themselves develop. Once issued, the API key can be used in accordance with the NY Times' API Terms of Use as described here:
+
+- http://developer.nytimes.com/Api_terms_of_use
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+## Using the NY Times Article Search API
+
+The output of the NY Times Article Search API is provided in JSON format. As such, we'll need to make use of the __RJSONIO__ package to help us decrypt that output. Additionally, we'll need to make use of some commonly used functions from the __RCurl__ and __plyr__ packages:
+
+```{r, message=FALSE, warning=FALSE}
+
+# load packages
+library(RCurl)
+library(plyr)
+library(RJSONIO)
+library(knitr)
+```
+
+The API allows us to construct what amount to queries for purposes of requesting article information from the NY Times online repository of article data. To access the archive, we are told to utilize the following "Base" URL:
+
+- http://api.nytimes.com/svc/search/v2/articlesearch
+
+We can then build upon this base URL to specify various search options. For example:
+
+- We can append ".json?" to the base URL to indicate we'd like our search results provided in .JSON format (as opposed to .JSONP format)
+
+- We can choose specific article attributes to be returned by appending "&fl=" followed by a comma delimited list of field names as specified on the API's home page (see link given above). For example, "&fl=headline,snippet,word_count" will return the articles' headlines, snippets, and word counts.
+
+- We can specify a set of search terms / topics by appending "&q=" followed by a list of terms delimited by plus('+') signs. For example, "&q=new+york+times" will return any article containing the phrase "new york times".
+
+There are many other search options available. However, we'll limit ourselves to the "&fl" and "&q" options for purposes of this assignment
+
+For our first query, we'll make use of a sample query provided on the API's home page. This sample query is specified as follows (__*NOTE: clicking on the link DOES NOT execute the query*__):
+
+- http://api.nytimes.com/svc/search/v2/articlesearch.json?q=new+york+times&page=2&sort=oldest&api-key=???
+
+According to the API's home page, this query will return documents containing the phrase 'new york times' and returns only results 20-29 (10 in total), as specified by the "&page=2" argument. Results will be sorted by oldest to newest.
+
+Before submitting this query to the API, we'll break it apart into several components to make it a bit easier to manage. We also need to append our unique API key as indicated by the "&api-key=???" given at the end of the sample query.
+
+```{r}
+
+# set the base url with the return format preset to .json
+base_url <- "http://api.nytimes.com/svc/search/v2/articlesearch.json?"
+
+# Set the API Key value
+api_key <- "&api-key=7ab50f938999e510a6c7aeb077549a5d:11:74810790"
+
+# Now construct the full query string
+query_url <- sprintf("%s%s%s", base_url, "q=new+york+times&page=2&sort=oldest", api_key)
+query_url
+```
+
+Using the query string we've constructed we can now submit a query to the API using the RCurl package's __getURL__ function:
+
+```{r}
+# submit query to NY Times API
+results <- getURL(query_url)
+
+# display structure of search results
+str(results)
+```
+
+As we can see above, the results of the search is a rather extensive JSON structure that we'll need to parse if we are to have any chance of constructing a data frame. To that end we'll make use of the __fromJSON__ function:
+
+```{r}
+j_res <- fromJSON(results)
+```
+
+The __fromJSON__ package converts the output of the NY Times API to a rather complex list of lists that requires careful inspection to determine which portions of that data structure actually contain the article data we are interested in. After examining the data structure via RStudio's "Environment" window, we find that the data we seek are accessible via the following list path:
+
+- j_res\$response\$docs
+
+For example, we can access the URL and lead paragraph of first document in the list of search results as follows:
+```{r}
+j_res$response$docs[[1]]$web_url
+j_res$response$docs[[1]]$lead_paragraph
+```
+
+We now need to "reach into" that list path and extract the individual articles that have been returned by our search. We'll do that by first using the __sapply__ function to "unlist" the individual articles and then converting those results to an R data frame via R's __lapply__ function:
+
+```{r}
+# unlist articles returned by search 
+j_res.unlist <- sapply(j_res$response$docs, unlist)
+
+# convert unlisted items to data frame
+j_res.df <- do.call("rbind.fill", lapply(lapply(j_res.unlist, t), data.frame, stringsAsFactors = FALSE))
+```
+
+We now have a dataframe containing the results of our search. However, a quick peek at the column names indicates that we have obtained 23 columns worth of attributes for each article. This has occurred since the sample query string we used for this search did not make use of the "&fl=" option to limit the fields returned by the query to a specific, limited set of fields; instead, the API has provided every possible article attribute, many of which we probably aren't interested in:
+
+```{r}
+names(j_res.df)
+```
+
+We'll now make use of the "&fl=" option to restrict the results to a few interesting article attributes. Specifically, we'll restrict the results to the web URL, snippet, publication date, and word count for each article returned by the search:
+
+```{r}
+# narrow list of fields returned down a bit
+fields <- "&fl=web_url,snippet,pub_date,word_count"
+
+# construct search query
+query_url <- sprintf("%s%s%s%s", base_url, "q=new+york+times&page=2&sort=oldest", fields, api_key)
+
+# submit the query via the NY Times API
+results <- getURL(query_url)
+
+# parse query results
+j_res <- fromJSON(results)
+
+# unlist search results
+j_res.unlist <- sapply(j_res$response$docs, unlist)
+
+# convert unlisted items to data frame
+j_res.df <- do.call("rbind.fill", lapply(lapply(j_res.unlist, t), data.frame, stringsAsFactors = FALSE))
+
+names(j_res.df)
+```
+
+We appear to have a far more manageable data frame now, so let's display the search results:
+
+```{r}
+kable(j_res.df)
+```
+
+As we can see, we've successfully retrieved the 10 results we desired and converted them to an R data frame.
