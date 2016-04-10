@@ -1,0 +1,354 @@
+---
+title: "CUNY MSDA 607 Week 11 Assignment"
+author: "James Topor"
+date: "April 2, 2016"
+output: 
+    html_document:
+        toc: true
+        depth: 3
+        number_sections: FALSE
+        theme: spacelab
+        highlight: tango
+---
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+# Introduction
+
+For this assignment we are asked to use a set of pre-classified "training" documents to predict the classification of new "test" documents that are not part of the set of "training" document set. For example, we can use a corpus of labeled "*spam*" and "*ham*" (non-spam) e-mails to predict whether or not a new email is spam.  
+
+The assignment provides us with a link to a pre-classified spam/ham dataset corpus available at the following web page:
+
+https://spamassassin.apache.org/publiccorpus/
+
+That web link provides access to a variety of compressed files containing sets of pre-classified sample email messages. The compressed files need to be downloaded to a local file folder and uncompressed before they can be utilized. For purposes of this assignment, we've made use of the following two files:
+
+- 20021010_easy_ham.tar.bz2 : Documents for "*ham*" classification
+
+- 20021010_spam.tar.bz2 : Documents for "*spam*" classification
+
+Those files have been pre-downloaded and de-compressed within a local file folder prior to any R code usage herein *(NOTE: It was not practical to push all of the decompressed files to GitHub due to the 17MB+ size of those files)*.
+
+The pre-classified email files will be used to create a Document-Term Matrix which will subsequently be used to 'train' three different supervised learning algorithms/models:
+
+- Support Vector Machines (SVM)
+
+- Random Forest
+
+- Maximum Entropy
+
+Each of these models will use the content of the Document-Term Matrix to 'learn' (or 'train' itself) how to classify a new file as either ham or spam. Once 'trained', we can test the efficacy of that 'training' by presenting the 'trained' model with previously 'uncategorized' files and letting the model try to determine the proper classification (ham or spam) for each file. Since we will know the true categorization of the 'uncategorized' files ourselves, we can subsequently evaluate the performance of each model.
+
+Each of these supervised learning algorithms will use roughly 80% of the pre-classified ham and spam files for purposes of 'model training' while the remaining 20% will be used to test the accuracy of the models resulting from the 'model training' process. The results of the three algorithms are then compared to see if there is a substantive difference in their performance when attempting to categorize a file as either ham or spam.
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+# Building a Corpus
+
+Prior to building a Document-Term Matrix we must first create an R object known as a 'corpus', which is basically an aggregation of a set of documents or files. For our purposes, the corpus creation process entails reading the contents of each of the ham/spam files we've downloaded and adding those contents to the corpus object. 
+
+As a preliminary step we need to load a series of R packages that will enable the processing required throughout the rest of our work here. Of the packages listed below, we will rely heavily on functions contained within the __tm__ and __RTextTools__ packages.
+
+```{r, warning=FALSE, message=FALSE}
+library(stringr)
+library(tm)
+library(SnowballC)
+library(RWeka)
+library(RTextTools)
+library(topicmodels)
+library(knitr)
+```
+
+Now we'll start compiling the corpus by loading the filenames for the pre-classified *ham* data set:
+
+```{r}
+# load pre-classified 'ham' file names
+ham <- list.files("C:/SQLData/HamSpam/easy_ham")
+length(ham)
+```
+
+The output of R's __length__ function tells us that we have a total of 2,551 'ham' files available. We'll  split these files into a 'training' set and a 'test' set, using 1750 of the files (roughly 70%) for training purposes and retaining the remainder for testing purposes:
+
+```{r}
+# use the first 1750 ham messages for training
+train_ham <- ham[1:1750]
+
+# retain the last 801 ham messages for testing
+test_ham <- ham[1751:2551]
+```
+
+Now we'll create a corpus containing all of the training documents (both 'ham' and 'spam'). We'll start by initializing the corpus using the first training file from the 'ham' collection:
+
+```{r}
+# set variable for base directory path
+base_dir <- "C:/SQLData/HamSpam/easy_ham/"
+
+# create the full file path
+file_name <- sprintf("%s%s", base_dir, train_ham[1])
+
+# read the contents of the file
+tmp <- readLines(file_name)
+tmp <- str_c(tmp, collapse = "")
+
+# Create master corpus
+master_corpus <- Corpus(VectorSource(tmp))
+
+# record the file name
+meta(master_corpus[[1]], "Filename") <- train_ham[1]
+# Set meta information
+meta(master_corpus[[1]], "FileType") <- "Ham"
+
+# now display the meta info we have
+meta(master_corpus[[1]])
+```
+
+Now that we have the master corpus initialized we can iterate through the remainder of the 'ham' training set and add them to the corpus:
+
+```{r, warning=FALSE}
+
+for(i in 2:length(train_ham)) {
+  
+  file_i <- train_ham[i]
+  file_name <- sprintf("%s%s", base_dir, file_i)
+  tmp <- readLines(file_name)
+  tmp <- str_c(tmp, collapse = "")
+  
+  tmp_corpus <- Corpus(VectorSource(tmp))
+  master_corpus <- c(master_corpus, tmp_corpus)
+  
+  # record the file name
+  meta(master_corpus[[i]], "Filename") <- file_i
+  # set file 'Type' indicator to 'Ham'
+  meta(master_corpus[[i]], "FileType") <- "Ham"
+}
+
+# now check the count of docs in the corpus to ensure all were added
+master_corpus
+```
+
+As we can see above, we now have a corpus comprised of the 1750 documents from our training set of 'ham' emails. 
+
+We now need to add our training set of 'spam' emails to the corpus. We'll follow a process similar to that which we used on the 'ham' emails: 
+
+- Load the list of 'spam' filenames; 
+
+- Check the count of the available files;
+
+- Split the 'spam' file set into 'training' and 'test' sets
+
+```{r}
+# build the training corpus for spam
+
+# load pre-classified 'spam' file names
+spam <- list.files("C:/SQLData/HamSpam/spam")
+length(spam)
+```
+
+We have 501 spam emails to make use of, so if we are to adhere to the 70/30 split we applied to the 'ham' emails we should use 350 of the spam emails for training and retain the remaining 151 files for testing purposes:
+
+```{r}
+# use the first 400 spam messages for training
+train_spam <- spam[1:350]
+
+# retain the last 101 spam messages for testing
+test_spam <- spam[351:501]
+```
+
+The adding of the training set of spam files follows the same process as was used to load the training set of ham files:
+
+```{r, warning=FALSE}
+# set the base directory for the spam email files
+base_dir <- "C:/SQLData/HamSpam/spam/"
+
+# set base counter value for corpus: needs to = length of training ham data set
+k <- length(train_ham)
+
+for(i in 1:length(train_spam)) {
+  
+  file_i <- train_spam[i]
+  file_name <- sprintf("%s%s", base_dir, file_i)
+  tmp <- readLines(file_name)
+  tmp <- str_c(tmp, collapse = "")
+  
+  tmp_corpus <- Corpus(VectorSource(tmp))
+  master_corpus <- c(master_corpus, tmp_corpus)
+  
+  # record the file name
+  meta(master_corpus[[k+i]], "Filename") <- file_i
+  # set file 'Type' indicator to 'Spam'
+  meta(master_corpus[[k+i]], "FileType") <- "Spam"
+}
+
+# now check the count of docs in the corpus to ensure all were added
+master_corpus
+```
+
+We now have the 2100 test documents (1750 ham, 350 spam) loaded into the corpus. We'll now add the 'test' sets of ham and spam files to the corpus using the process outlined above. First the ham files:
+
+```{r}
+# set variable for base directory path
+base_dir <- "C:/SQLData/HamSpam/easy_ham/"
+
+# set base counter value for corpus: needs to = length of training ham data set
+k <- length(train_ham) + length(train_spam)
+
+for(i in 1:length(test_ham)) {
+  
+  file_i <- test_ham[i]
+  file_name <- sprintf("%s%s", base_dir, file_i)
+  tmp <- readLines(file_name)
+  tmp <- str_c(tmp, collapse = "")
+  
+  tmp_corpus <- Corpus(VectorSource(tmp))
+  master_corpus <- c(master_corpus, tmp_corpus)
+  
+  # record the file name
+  meta(master_corpus[[k+i]], "Filename") <- file_i
+  # set file 'Type' indicator to 'Ham'
+  meta(master_corpus[[k+i]], "FileType") <- "Ham"
+}
+
+# now check the count of docs in the corpus to ensure all were added
+master_corpus
+```
+
+After adding the test set of ham files we have 2901 total files in our corpus. This appears to be an accurate total since we had 2551 total ham files to start with (which have all now been loaded into the corpus) and we've loaded 350 training spam files thus far. 
+
+All that remains to be done is to load the test set of spam files:
+
+```{r}
+# set the base directory for the spam email files
+base_dir <- "C:/SQLData/HamSpam/spam/"
+
+# set base counter value for corpus: needs to = length of training ham data set
+k <- length(train_ham) + length(train_spam) + length(test_ham)
+
+for(i in 1:length(test_spam)) {
+  
+  file_i <- test_spam[i]
+  file_name <- sprintf("%s%s", base_dir, file_i)
+  tmp <- readLines(file_name)
+  tmp <- str_c(tmp, collapse = "")
+  
+  tmp_corpus <- Corpus(VectorSource(tmp))
+  master_corpus <- c(master_corpus, tmp_corpus)
+  
+  # record the file name
+  meta(master_corpus[[k+i]], "Filename") <- file_i
+  # set file 'Type' indicator to 'Spam'
+  meta(master_corpus[[k+i]], "FileType") <- "Spam"
+}
+
+# now check the count of docs in the corpus to ensure all were added
+master_corpus
+```
+
+As we can see above, we now have all 2551 ham files and 501 spam files loaded into the corpus. To recap: 70% of each category are intended to be used for training while the remaining 30% are to be used for testing. Specifically, the first 2100 files in the corpus will be used for training, while the remaining 952 will be used for testing. Please note that our corpus-building process has ensured that our training and test data sets hold equivalent proportions of ham and spam files.
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+# Creating a Document-Term Matrix
+
+With the corpus complete we can now construct a Document-Term Matrix using the __DocumentTermMatrix__ function from the __tm__ package:
+
+```{r}
+# Create a Document-Term Matrix
+doc_tm <- DocumentTermMatrix(master_corpus,
+                          control = list(removePunctuation = FALSE,
+                                         removeNumbers = FALSE,
+                                         stopwords = FALSE,
+                                         tolower = FALSE,
+                                         stripWhitespace = TRUE))
+
+# doc_tm
+
+# should sparse terms be removed for a spam filter??
+doc_tm <- removeSparseTerms(doc_tm, 1-(10/length(master_corpus)))
+doc_tm
+```
+
+The Document-Term Matrix has our 3052 documents, along with 6730 terms after removing a percentage of "sparse" terms.
+
+As shown in the R code chunk above, we have the option of automatically removing many items from our Document-Term Matrix, including things such as punctuation, digits, and stopwords. However, since our end goal is to attempt to categorize email messages as being either ham or spam, we won't make use of those options since email messages are comprised of a wide variety of meaningful punctuation and digits, many of which might be useful for identifying the source of a spam message. Furthermore, a high frequency of certain stopwords could be an indicator of spam. Since we don't specifically know exactly what makes a spam message "spam", we've refrained from removing any email file contents that might end up being meaningful for purposes of categorization.
+
+With the Document-Term Matrix complete, we can now attempt to 'train' the supervised learning models and test their accuracy.
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+# Training and Testing the Supervised Learning Models
+
+All of the R code used from this point forward has been sourced from __section 10.3.5__ of our textbook __"Automated Data Collection with R"__. Minor modifications have been made to that code to meet the requirements of this assignment.
+
+Prior to 'training' the supervised learning models we need to create an R object referred to by the authors as a 'container' which will contain all relevant information needed by the models' estimation procedures. The contents of the container will tell each of the three supervised learning models which 'labels' are to be used for categorization purposes (in our case, a file type indicator set to either "Ham" or "Spam") as well as which items within the Document-Term Matrix are to be used for training and which are for testing. As discussed earlier, the first 2400 items in the DTM will be used for training while the remaining 652 will be used for testing.
+
+```{r}
+
+# create a vector containing the FileType values for each document
+meta_filetype <- meta(master_corpus, type = "local", tag = "FileType", stringsAsFactors = FALSE)
+
+ft_labels <- unlist(meta_filetype)
+
+# Create container 
+# Create a container with all relevant information for use in the estimation procedures
+# we specify that the first 2100 documents are training data while we want the documents 2101 - 3052 to be
+# classified. We set the virgin attribute to FALSE, meaning that we have labels for all 3052 documents.
+N <- length(ft_labels)
+container <- create_container(
+    doc_tm,
+    labels = ft_labels,
+    trainSize = 1:2100,
+    testSize = 2101:N,
+    virgin = F
+)
+
+slotNames(container)
+```
+
+With the container in place we can now "train" our three supervised learning models:
+
+```{r}
+# Train models
+# supply the information that we have stored in the container to the models
+svm_model <- train_model(container, "SVM")
+tree_model <- train_model(container, "TREE")
+maxent_model <- train_model(container, "MAXENT")
+```
+
+The test data is then used to evaluate the accuracy of the resulting email classification models:
+
+```{r}
+# Classify models
+svm_out <- classify_model(container, svm_model)
+tree_out <- classify_model(container, tree_model)
+maxent_out <- classify_model(container, maxent_model)
+
+# Construct data frame with correct labels
+# construct a data frame containing the correct and the predicted labels
+labels_out <- data.frame(
+    correct_label = ft_labels[2101:N],
+    svm = as.character(svm_out[,1]),
+    tree = as.character(tree_out[,1]),
+    maxent = as.character(maxent_out[,1]),
+    stringsAsFactors = F
+)
+
+# examine the performance of the three algorithms
+
+## SVM performance
+table(labels_out[,1] == labels_out[,2])
+prop.table(table(labels_out[,1] == labels_out[,2]))
+
+## Random forest performance
+table(labels_out[,1] == labels_out[,3])
+prop.table(table(labels_out[,1] == labels_out[,3]))
+
+## Maximum entropy performance
+table(labels_out[,1] == labels_out[,4])
+prop.table(table(labels_out[,1] == labels_out[,4]))
+```
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+# Conclusion
+
+The results show remarkable level of accuracy across all three models. In fact, it appears as though the Random Forest model scored 100% accuracy, while the SVM model miscategorized only 1 of the 952 test emails and the Maximum Entropy model miscategorized 10 out of the 952 emails. However, this high level of accuracy should be expected to some degree since the emails had, in fact, been categorized as either ham or spam BEFORE we trained the models. As such, we shouldn't be surprised by such a high degree of accuracy for any of the models.
