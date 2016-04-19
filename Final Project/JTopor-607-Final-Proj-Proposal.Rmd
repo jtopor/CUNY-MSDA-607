@@ -1,0 +1,86 @@
+---
+title: "CUNY MSDA 607 Spring 2016 Final Project Proposal"
+author: "James Topor"
+output: 
+    html_document:
+        toc: true
+        depth: 3
+        number_sections: FALSE
+        theme: spacelab
+        highlight: tango
+---
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+# Introduction
+
+The World Health Organization (WHO) states that tuberculosis (TB) is one of the leading bacterial-based causes of death worldwide. It is one of the top 5 causes of death among women aged 15-44, and in 2014 alone killed approximately 1.5 million people throughout the world. Furthermore, the WHO states that "About one-third of the world's population has latent TB, which means people have been infected by TB bacteria but are not (yet) ill with the disease and cannot transmit the disease" and "Over 95% of TB deaths occur in low- and middle-income countries". 
+
+In fact, 22 countries alone account for roughly 80% of the world's TB cases:
+
+http://www.stoptb.org/countries/tbdata.asp
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+# Research Questions
+
+The world's health authorities clearly face a major challenge in managing and preventing TB infections. A potential research question we can pose is:
+
+- Do countries that have high incidence of TB  share certain *measurable* attributes?
+
+Similarly, we can also ask:
+
+- Do countries that have relatively lower incidence of TB share certain *measurable* attributes that countries with high incidences of TB should perhaps strive to emulate?
+
+For purposes of our research, we can examine attributes such as:
+
+- A country's Gross National Income per capita;
+
+- A country's health care expenditure per capita;
+
+- A country's average number of years of schooling per capita;
+
+and perhaps some others.
+
+Using these data we can attempt to "describe" the attributes of countries that have varying degrees of TB incidence. For example, we can fit a regression model for countries having high incidence of TB and compare the results to regression models of countries having both average and low incidence of TB to identify statistically significant differences between the aforementioned measurable attributes. The results of the analysis could then be used to set "benchmarks" which countries with high incidence of TB might want to strive to achieve if they wish to reduce their overall incidence of TB.
+
+We can also potentially attempt to identify trends within the data related to either decreases or increases in the incidence of TB for different countries over some period of time, and determine whether or not those trends are related to statistically significant changes in the measurable attributes described above.
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+# Data To Be Used
+
+Our Week 3 assignment made use of a collection of TB data for 100 countries for the years 1995 - 2013. That data was loaded into an SQL database and is available for us to use in this project.
+
+Other data will need to be collected from the web either via scraping web pages, web API's, or downloading of CSV files. Some potential data sources are as follows:
+
+__Gross National Income (GNI) Per Capita by Country__
+
+http://data.worldbank.org/indicator/NY.GNP.PCAP.PP.CD
+
+
+__Health Care Expenditure Per Capita by Country__
+
+http://data.worldbank.org/indicator/SH.XPD.PCAP
+
+
+__Average years of Schooling per Country__
+
+http://hdr.undp.org/en/content/mean-years-schooling-adults-years
+
+
+__The HDI index report__
+
+http://hdr.undp.org/en/composite/trends
+
+__---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------__
+
+# Approach
+
+Since the data we will be collecting appears to be highly structured and does not consist of relationships between countries that would lend themselves to use of a graph-based database, it appears that a relational database is likely the most practical method of storing and managing the data we collect. While we could attempt to use a NoSQL database such as MongoDB or Neo4j for that purpose, doing so would likely add no value to the data storage and management aspect of the project due to the nature of the data we'll be collecting. 
+
+For purposes of data collection, the web-based sources of data mentioned above will need to be investigated to determine the most appropriate method of acquiring data from each (e.g., scraping, API, CSV download). 
+
+The research effort will also likely require a significant amount of graphics / data visualization work. For example, we can attempt to construct geoplots that clearly show differences between various countries relative to the measurable attributes discussed above. 
+
+Furthermore, we'll need construct and plot various regression models to enable the comparisons we envision.
