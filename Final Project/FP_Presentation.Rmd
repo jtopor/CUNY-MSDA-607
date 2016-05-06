@@ -1,0 +1,608 @@
+---
+title: "Per Capita Metrics as <br> Predictors of Tuberculosis Infection Rates"
+author: "James Topor"
+date: "May 19, 2016"
+output:
+  ioslides_presentation:
+    widescreen: true
+    smaller: true
+---
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE}
+# Load Packages
+library(knitr)
+library(RODBC)
+library(ggplot2)
+suppressMessages(library(rworldmap))
+suppressMessages(library(maptools))
+library(dplyr)
+library(tidyr)
+options(stringsAsFactors = FALSE)
+```
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, eval=TRUE}
+# establish connection to local SQL server
+# NOTE: Be sure to set the server reference appropriately to comport with your own local 
+# computing environment. 
+con <- odbcConnect("local_server")
+
+# select a database to use - in this case, the 'tb_prediction' database
+x <- sqlQuery(con, "use tb_prediction")
+rm(x)
+```
+
+## Tuberculosis: A Global Problem
+
+__The World Health Organization Says:__
+
+*"Tuberculosis is one of the top 5 causes of death globally among women aged 15-44, and in 2014 alone killed approximately 1.5 million people worldwide."* 
+
+<br> 
+
+__Research Questions:__
+
+- Do countries that have high incidence of TB  share certain __*measurable*__ attributes?
+
+- Do countries that have relatively lower incidence of TB share certain __*measurable*__ attributes that countries with high incidences of TB should perhaps strive to emulate?
+
+
+
+## Data Used
+
+__Tuberculosis Infection Counts__
+
+- From Assignment 3: TB Case Counts for 100 countries (1995 - 2013)
+
+__Country Population Counts__
+
+- From Assignment 3: Population counts for 100 countries (1995 - 2013).
+
+__World Bank Data__:
+
+- Life Expectancy at Birth (in years) per Country (1995 - 2013);
+
+- Health Care Expenditure Per Capita per Country (1995 - 2013);
+
+- Gross National Income (GNI) Per Capita per Country (1995 - 2013);
+
+- The percentage of a country's population having access to electricity (2000, 2010, 2012)
+
+__United Nations Data__:
+
+- Average years of Schooling per country (2000, 2005 - 2012)
+
+
+## Data Acquisition
+
+__All data is downloaded / scraped, transformed / 'tidied', and then stored in MySQL__
+
+| Data                 | Source       | Format      | 
+| -------------------- | ------------ | ----------- |
+| TB Infection Counts  | MySQL Table  | "Long"      |
+| Population Counts    | CSV File     | "Long"      |
+| World Bank Data      | CSV Files (4)| "Wide"      |
+| UN Data              | Web Scrape   | HTML,"Wide" |
+
+<br>
+
+__*Challenges*:__
+
+- Each data source + R's __rworldmap__ package all use different country naming conventions
+
+- Multiple country name "lookup" tables had to be created by hand in MySQL
+
+- Lack of consistency in the calendar years covered by data sets
+
+
+## Analysis
+
+- __TB Case Counts vs. TB Infection Rates: Geographical "Hotspots"__
+
+<br> 
+
+- __Trends in TB Case Counts & Infection Rates__
+
+<br> 
+
+- __Per Capita Metrics vs. TB Infection Rates__
+
+
+## Average Annual TB Case Counts (1995 - 2013)
+
+```{r, echo = FALSE}
+# get counts of cases by country, year
+tb_df <- sqlQuery(con, "SELECT country, year, SUM(child + adult + elderly) FROM tb
+						GROUP BY country, year ORDER BY country, year", stringsAsFactors=F)
+
+# rename third column to meaningful name
+colnames(tb_df)[3] <- "cases"
+
+# Ensure country names match those used by R's geomapping tools:
+# first, fetch R country names from database lookup table
+rmap_df <- sqlQuery(con, "SELECT * FROM rmap_lookup", stringsAsFactors=F)
+
+for(i in 1:nrow(rmap_df)) {
+  # update non-matching country names within data frame
+  tb_df$country[tb_df$country == rmap_df$tb_country[i]] <- rmap_df$rmap_country[i]
+}
+
+# now calculate average case counts for each country
+tb_means <- tb_df %>% group_by(country) %>% summarise(avg_cases = mean(cases, na.rm = TRUE))
+
+# Sort the averages in descending order
+tbm_sorted <- arrange(tb_means, desc(avg_cases))
+```
+
+
+
+```{r, echo = FALSE, fig.height=6, fig.width=9.4, message=FALSE, warning=FALSE}
+# geoplot average case counts + rates of infection, 1995-2013
+
+# par(mar=c(4, 3, 3, 1) + 0.1)
+
+par(mai=c(1.5,2,0,0.42))
+
+# plot geomap for number of cases by country
+capture.output(spdf <- joinCountryData2Map(tbm_sorted, joinCode="NAME",
+                                           nameJoinColumn="country", verbose=FALSE),
+               file='NUL')
+
+mapParams <- mapCountryData(spdf, nameColumnToPlot="avg_cases",
+                            catMethod=c(0,1000,5000,10000,20000,50000,100000,250000,500000, 
+                                        1000000), addLegend=FALSE, numCats = 9, aspect = 1.3,
+                            mapTitle = "")
+
+mapParams$legendText <- c('0-1000',
+                          '1001-5000',
+                          '5000-10000',
+                          '10001-20000',
+                          '20001-50000',
+                          '50001-100000',
+                          '100001-250000',
+                          '250001-500000',
+                          '500001-1000000')
+
+do.call( addMapLegendBoxes, c( mapParams, horiz=FALSE, title="# TB Cases", 
+                               cex = .9, pt.cex = 1.5))
+```
+
+
+## Average Annual TB Infection Rates (1995 - 2013)
+
+
+```{r, echo = FALSE}
+# get tb rates of infection data
+tbrate_means <- sqlQuery(con, "SELECT DISTINCT country, AVG(rate) FROM tb_rates GROUP BY country ORDER BY AVG(rate) DESC", stringsAsFactors=F)
+
+# rename second column to meaningful name
+colnames(tbrate_means)[2] <- "avg_rate"
+
+tbrate_means$avg_rate <- tbrate_means$avg_rate * 100000
+```
+
+```{r, fig.height=6, fig.width=9.4, echo = FALSE, message=FALSE, warning=FALSE}
+
+# plot geomap for tb infection rates by country
+
+# par(mar=c(4, 3, 3, 1) + 0.1)
+par(mai=c(1.5,2,0,0.42))
+
+capture.output(spdf <- joinCountryData2Map(tbrate_means, joinCode="NAME",
+                                           nameJoinColumn="country", verbose = FALSE),
+               file='NUL')
+
+mapParams <- mapCountryData(spdf, nameColumnToPlot="avg_rate",
+                            catMethod=c(0,10,50,75,100,150, 
+                                        200, 300, 500, 1000), 
+                            addLegend=FALSE, numCats = 9, aspect = 1.3,
+                            mapTitle = "")
+
+mapParams$legendText <- c('0-10',
+                          '11-50',
+                          '51-76',
+                          '76-100',
+                          '101-150',
+                          '151-200',
+                          '201-300',
+                          '301-500',
+                          '501 - 1000')
+
+do.call( addMapLegendBoxes, c( mapParams, horiz=FALSE,  title="TB Cases/100K People",
+                               cex = .9, pt.cex = 1.5))
+```
+
+## Average Annual TB Case Counts (1995 - 2013)
+
+```{r, echo = FALSE, fig.height=6, fig.width=8.4,}
+
+par(mai=c(1.5,2,0.2,0.42))
+
+x <- arrange(head(tbm_sorted, n=20), avg_cases)
+Z <- x$avg_cases
+
+barplot(x$avg_cases, names = x$country, las=2, horiz = TRUE, xaxt = "n",
+        xlim=c(0,500000), col = rainbow(20), cex.axis = .8, cex.names = .7,
+        main = "Top 20 Countries")
+
+axis(1, las=2, axTicks(1), format(axTicks(1), scientific = F))
+
+rm(Z)
+rm(x)
+```
+
+## Average Annual TB Infection Rates (1995 - 2013)
+
+```{r, echo = FALSE, fig.height=6, fig.width=8.4}
+
+par(mai=c(1.5,2,0.2,0.42))
+
+x <- arrange(head(tbrate_means, n=20), avg_rate)
+Z <- x$avg_rate
+
+barplot(x$avg_rate, names = x$country, las=2, horiz = TRUE, xaxt = "n",
+        xlim=c(0,400), col = rainbow(20), cex.axis = .8, cex.names = .7,
+        main = "Top 20 Countries",
+        sub = "Cases per 100,000 People")
+axis(1, las=2, axTicks(1), format(axTicks(1), scientific = F))
+
+rm(Z)
+rm(x)
+```
+
+## Cause For Alarm
+
+```{r, echo = FALSE}
+
+# get tb rates for all countries
+tbr_df <- sqlQuery(con, "SELECT * FROM tb_rates", stringsAsFactors=F)
+
+tbr_df$rate <- tbr_df$rate * 100000
+
+# -----------------------------------------------------------------
+# Sort the rates in descending order for ALL years
+highrates <- arrange(tbr_df, desc(rate), country, year)
+```
+
+
+```{r, echo = FALSE}
+rateT20 <- head(tbrate_means, n = 20)
+casesT20 <-  head(tbm_sorted, n = 20)
+
+high_cr <- data.frame()
+
+for(i in 1:nrow(rateT20)) {
+  # find country names that occur in both top 20 case counts and top 20 infection rates
+  high_cr <- rbind(high_cr, 
+                   data.frame(casesT20$country[casesT20$country == rateT20$country[i]]))
+}
+
+# rename second column to meaningful name
+colnames(high_cr)[1] <- "country"
+
+# display VERY HIGH RISK countries
+kable(high_cr, row.names = TRUE, caption = "Countries With Both High TB Case Counts & High Infection Rates")
+```
+
+## Trends
+
+```{r, echo = FALSE}
+par(mai=c(.5,2,0.4,0.42))
+
+y_cases <- tb_df %>% group_by(year) %>% summarise(tot_cases = sum(cases, na.rm = TRUE))
+
+Z <- y_cases$tot_cases
+
+# plot total cases by year, using case count as basis of colorcode for bar
+barplot(y_cases$tot_cases, names = c(as.character(y_cases$year)), las=3, 
+        ylim=c(0,4000000), col = topo.colors(max(Z))[Z], cex.axis = .8, cex.names = .8,
+        main = 'Total # of Annual TB Cases, 100 Countries, 1995 - 2013', ylab = "# Cases" )
+rm(Z)
+rm(y_cases)
+```
+
+__Worldwide TB case counts and infection rates rose sharply during the (2006 - 2008) time period.__
+
+## Evidence of Worldwide TB Case Spike 2006 - 2008
+```{r, echo=FALSE, fig.height=6, fig.width=10.4}
+# Plotting 2 rows x 3 columns of plots = 6 plots total
+
+# par(mfrow=c(3,2))
+    
+# par(mfrow = c(3,4), oma = c(2, 2, 0, 0), mar=c(2, 2, 2, 2) + 2)
+
+par(mfrow = c(3,4), oma = c(1, 1, 0, 0), mar=c(1.5, 1.5, 0, 1.5) + 2)
+
+# ----------------------------
+# __China__
+t1 <- subset(tb_df, country == 'China')
+
+ytop <- max(t1$cases, na.rm = TRUE)
+
+barplot(t1$cases, names = "", las=3,ylim=c(0,ytop), 
+        col = 'blue', main = 'China' )
+
+# add axis labels
+mtext(side = 1, text = "1995 - 2013", line = 1)
+mtext(side = 2, text = "# Cases", line = 2)
+
+# ----------------------------
+# __Indonesia__
+t1 <- subset(tb_df, country == 'Indonesia')
+
+ytop <- max(t1$cases, na.rm = TRUE)
+
+barplot(t1$cases, names = "", las=3, ylim=c(0,ytop), 
+        col = 'blue', main = 'Indonesia')
+
+# add axis labels
+mtext(side = 1, text = "1995 - 2013", line = 1)
+mtext(side = 2, text = "# Cases", line = 2)
+
+# ----------------------------
+# __South Africa__
+t1 <- subset(tb_df, country == 'South Africa')
+
+ytop <- max(t1$cases, na.rm = TRUE)
+
+barplot(t1$cases, names = "", las=3, ylim=c(0,ytop), 
+        col = 'blue', main = 'South Africa')
+
+# add axis labels
+mtext(side = 1, text = "1995 - 2013", line = 1)
+mtext(side = 2, text = "# Cases", line = 2)
+
+# ----------------------------
+# __Russia__
+t1 <- subset(tb_df, country == 'Russia')
+
+ytop <- max(t1$cases, na.rm = TRUE)
+
+barplot(t1$cases, names = "", las=3, ylim=c(0,ytop), 
+        col = 'blue', main = 'Russia' )
+
+# add axis labels
+mtext(side = 1, text = "1995 - 2013", line = 1)
+mtext(side = 2, text = "# Cases", line = 2)
+
+# ----------------------------
+# __Brazil__
+t1 <- subset(tb_df, country == 'Brazil')
+
+ytop <- max(t1$cases, na.rm = TRUE)
+
+barplot(t1$cases, names = "", las=3, ylim=c(0,ytop), 
+        col = 'blue', main = 'Brazil' )
+
+# add axis labels
+mtext(side = 1, text = "1995 - 2013", line = 1)
+mtext(side = 2, text = "# Cases", line = 2)
+
+# ----------------------------
+# __Poland__
+t1 <- subset(tb_df, country == 'Poland')
+
+ytop <- max(t1$cases, na.rm = TRUE)
+
+barplot(t1$cases, names = "", las=3, ylim=c(0,ytop),
+        col = 'blue', main = 'Poland' )
+
+# add axis labels
+mtext(side = 1, text = "1995 - 2013", line = 1)
+mtext(side = 2, text = "# Cases", line = 2)
+
+
+# ----------------------------
+# __Argentina__
+t1 <- subset(tb_df, country == 'Argentina')
+
+ytop <- max(t1$cases, na.rm = TRUE)
+
+barplot(t1$cases, names = "", las=3, ylim=c(0,ytop), 
+        col = 'blue', main = 'Argentina' )
+
+# add axis labels
+mtext(side = 1, text = "1995 - 2013", line = 1)
+mtext(side = 2, text = "# Cases", line = 2)
+
+# ----------------------------
+# __Egypt__
+t1 <- subset(tb_df, country == 'Egypt')
+
+ytop <- max(t1$cases, na.rm = TRUE)
+
+barplot(t1$cases, names = "", las=3, ylim=c(0,ytop), 
+        col = 'blue', main = 'Egypt' )
+
+# add axis labels
+mtext(side = 1, text = "1995 - 2013", line = 1)
+mtext(side = 2, text = "# Cases", line = 2)
+
+
+# ----------------------------
+# __USA__
+t1 <- subset(tb_df, country == 'USA')
+
+ytop <- max(t1$cases, na.rm = TRUE)
+
+barplot(t1$cases, names = "", las=3, ylim=c(0,ytop), 
+        col = 'blue', main = 'USA' )
+
+# add axis labels
+mtext(side = 1, text = "1995 - 2013", line = 1)
+mtext(side = 2, text = "# Cases", line = 2)
+
+# ----------------------------
+# __Mali__
+t1 <- subset(tb_df, country == 'Mali')
+
+ytop <- max(t1$cases, na.rm = TRUE)
+
+barplot(t1$cases, names = "", las=3, ylim=c(0,ytop), 
+        col = 'blue', main = 'Mali' )
+
+# add axis labels
+mtext(side = 1, text = "1995 - 2013", line = 1)
+mtext(side = 2, text = "# Cases", line = 2)
+
+# ----------------------------
+# __Guatemala__
+t1 <- subset(tb_df, country == 'Guatemala')
+
+ytop <- max(t1$cases, na.rm = TRUE)
+
+barplot(t1$cases, names = "", las=3, ylim=c(0,ytop), 
+        col = 'blue', main = 'Guatemala')
+
+# add axis labels
+mtext(side = 1, text = "1995 - 2013", line = 1)
+mtext(side = 2, text = "# Cases", line = 2)
+
+rm(t1)
+rm(ytop)
+par(mfrow=c(1,1))
+```
+
+## Per Capita Metrics vs. TB Infection Rates
+
+Linear least squares regression finds little relation between per capita metrics and TB infection rates
+
+```{r, echo = FALSE}
+# get life expectancy data set
+lifexp_df <- sqlQuery(con, "SELECT * FROM life_exp", stringsAsFactors=F)
+```
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+# create a copy of tbr_df data frame
+t.df <- tbr_df
+
+# add life expectancy to tb_rates dataframe
+t.df$life_exp <- lifexp_df$life_exp
+```
+
+```{r, echo= FALSE}
+# get healthcare data set
+hc_df <- sqlQuery(con, "SELECT * FROM percap_hc", stringsAsFactors=F)
+
+# add healthcare data to tb_rates dataframe
+t.df$hc <- hc_df$percap_hc
+```
+
+```{r, echo = FALSE}
+# get gni data set
+gni_df <- sqlQuery(con, "SELECT * FROM percap_gni", stringsAsFactors=F)
+
+# add gni data to tb_rates dataframe
+t.df$gni <- gni_df$percap_gni
+```
+
+```{r, echo = FALSE}
+# get electricity data set
+eacc_df <- sqlQuery(con, "SELECT * FROM perc_e_acc", stringsAsFactors=F)
+
+# fetch TB rates data for 3 yrs only: 2000, 2010, 2012
+t2.df <- sqlQuery(con, "SELECT * FROM tb_rates WHERE year IN(2000, 2010, 2012)")
+t2.df$rate <- t2.df$rate * 100000
+
+# add electricity data to tb_rates dataframe
+t2.df$elec <- eacc_df$perc_e_acc
+```
+
+```{r, echo = FALSE}
+# get avg yrs schooling data set
+school_df <- sqlQuery(con, "SELECT * FROM yrs_school", stringsAsFactors=F)
+
+# fetch TB rates data for only yrs: 2000, 2005 - 2012
+t3.df <- sqlQuery(con, "SELECT * FROM tb_rates WHERE year 
+                 IN(2000, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012)")
+
+t3.df$rate = t3.df$rate * 100000
+
+# add school data to tb_rates dataframe
+t3.df$school <- school_df$yrs_school
+```
+
+
+```{r, echo = FALSE, warning=FALSE, message= FALSE}
+# par(mfrow = c(2,3), oma = c(2, 2, 0, 0), mar=c(1.5, 1.5, 1, 1) + 1)
+
+require(gridExtra)
+
+
+# plot using ggplot
+p1 <- ggplot(t.df, aes(x = life_exp, y = rate)) + 
+  geom_point() +
+  stat_smooth(method = "lm", col = "red") +
+  xlab("Life Expectancy") +
+  ylab("TB Infection Rate / 100K")
+
+# plot using ggplot
+p2 <- ggplot(t.df, aes(x = hc, y = rate)) + 
+  geom_point() +
+  stat_smooth(method = "lm", col = "red") +
+  xlab("Per Cap. Healthcare Spend") +
+  ylab("TB Infection Rate / 100K")
+  
+# plot using ggplot
+p3 <- ggplot(t.df, aes(x = gni, y = rate)) + 
+  geom_point() +
+  stat_smooth(method = "lm", col = "red") +
+  xlab("Per Cap. GNI") +
+  ylab("TB Infection Rate / 100K")
+
+# plot using ggplot
+p4 <- ggplot(t2.df, aes(x = elec, y = rate)) + 
+  geom_point() +
+  stat_smooth(method = "lm", col = "red") +
+  xlab("Pop. % w/ Electricity") +
+  ylab("TB Infection Rate / 100K People")
+
+# plot using ggplot
+p5 <- ggplot(t3.df, aes(x = school, y = rate)) + 
+  geom_point() +
+  stat_smooth(method = "lm", col = "red") +
+  xlab("Avg Years of Schooling") +
+  ylab("TB Infection Rate / 100K People")  
+
+grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
+```
+
+## Per Capita Metrics vs. TB Infection Rates
+
+However, there clearly are __*major*__ differences in the per capita metrics of countries with low and high TB infection rates:
+
+| Type of Country    | Life Exp. | HC Exp. |   GNI   | Elec. Acc.| Schooling |
+| ------------------ | --------- | ------- | ------- | --------- | --------- |
+| Low TB Rate        | 76.63 yrs | $966.90 | $25,640 |  100.00%  |  9.05 yrs |
+| High TB Rate       | 59.66 yrs | $114.20 | $ 3,280 |   37.45%  |  6.07 yrs |
+| Difference:        | 16.97 yrs | $852.70 | $22,360 |   62.55%  |  2.98 yrs |
+
+<br> 
+
+__*So what is going on here?*__
+
+- A relationship likely __*DOES*__ exist between the per capita metrics and TB infection rates.
+
+- However, if such a relationship exists, it must be __*non-linear*__.
+
+## Conclusions
+
+- Linear least squares modeling is __*not*__ useful for identifying relationships between per capita metrics and TB infection rates.
+
+- However, the differences in per capita metrics of countries with low and high TB infection rates indicates that some sort of relationship likely __*DOES*__ exist.
+
+- Therefore, other types non-linear modeling would be required 
+  
+<br> 
+  
+__*Access the Full Report & Separate Data Acquisition Module at*__:
+
+- Analysis & Writeup: https://rpubs.com/jt_rpubs/178917
+
+- Data Acquisition Module: https://rpubs.com/jt_rpubs/178913
+
+
+```{r, echo = FALSE}
+# close the database connection
+odbcClose(con)
+```
+
