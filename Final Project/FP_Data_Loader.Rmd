@@ -1220,7 +1220,7 @@ tb_nin
 ```
 
 
-We appear to have 16 country names within R's geoplotting tools that do not match the corresponding country names used in our data sets. Unfortunately, finding the inconsistencies requires reading each individual country name listed above, extracting the 'most relevant' aspect therein by hand, and using that aspect to locate a similar country name within the life expectancy data. (NOTE: Use of R's string processing functions is not possible since we can't know what country name we might be looking for without first manually inspecting each non-matching country name). 
+We appear to have 16 country names within R's geoplotting tools that do not match the corresponding country names used in our data sets. Unfortunately, finding the inconsistencies requires reading each individual country name listed above, extracting the 'most relevant' aspect therein by hand, and using that aspect to locate a similar country name within the TB data. (NOTE: Use of R's string processing functions is not possible since we can't know what country name we might be looking for without first manually inspecting each non-matching country name). 
 
 The R code shown below was used for purposes of that manual process.  The outputs of the R code were used to create and populate a lookup table within the SQL script that is described above. The lookup table is automatically created and populated when the script is executed within MySQL Workbench. 
 
