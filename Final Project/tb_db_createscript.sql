@@ -175,7 +175,7 @@ SELECT * FROM perc_e_acc;
 SELECT COUNT(*) FROM perc_e_acc;
 
 /****************************************************************
- Create lookup table for World Bank country names
+ Create lookup table for UN data set country names
 
 *****************************************************************/
 
@@ -187,7 +187,7 @@ CREATE TABLE hdr_c_lookup
 
 /* TRUNCATE TABLE hdr_c_lookup; */
 
-/* Insert lookup data for World Bank country names */
+/* Insert lookup data for UN country names */
 INSERT INTO hdr_c_lookup ( tb_country, hdr_country ) 
 VALUES 
 ('China, Hong Kong SAR', 'Hong Kong, China (SAR)'),
