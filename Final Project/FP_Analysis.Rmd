@@ -1,10 +1,11 @@
 ---
-title: |
-  |  Per Capita Metrics as Predictors of
-  |  Tuberculosis Infection Rates:
-  |  Data Analysis
+title: "|  Per Capita Metrics as Predictors of\n|  Tuberculosis Infection Rates:\n|
+  \ Data Analysis  \n"
 author: 'Author: James Topor'
 output:
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
   html_document:
     highlight: tango
     theme: cerulean
@@ -14,9 +15,6 @@ output:
       collapsed: yes
       number_sections: yes
       smooth_scroll: no
-  pdf_document:
-    toc: yes
-    toc_depth: '2'
 ---
 
 __--------------------------------------------------------------------------------------------------------------------------__
@@ -1606,7 +1604,7 @@ ggplot(t.df, aes(x = hc, y = rate)) +
   ylab("TB Infection Rate / 100K People")
 ```
 
-The scatterplot shows very clearly that countries that have relatively low per capita healthcare expenditures also tended to experience the highest rates of TB infections during the 1995 - 2013 time period. The regression line echoes this by showing a clear negative relationship between the two variables.
+The scatterplot shows very clearly that countries that have relatively low per capita healthcare expenditures also tended to experience the highest rates of TB infections during the 1995 - 2013 time period, while countries having per capita healthcare expenditures in excess of roughly $3,750 USD consistently experienced relatively low rates of TB infection.The regression line echoes this by showing a clear negative relationship between the two variables.
 
 We can again use R's __cor__ function to compute the correlation coefficient of the relationship between TB infection rates and per capita healthcare expenditures:
 
@@ -1726,7 +1724,7 @@ ggplot(t.df, aes(x = gni, y = rate)) +
   ylab("TB Infection Rate / 100K People")
 ```
 
-The scatterplot shows very clearly that countries that have relatively low per capita GNI also tended to experience the highest rates of TB infections during the 1995 - 2013 time period, while countries having per capita GNI in excess of roughly $38,000 USD consistently experienced realtively low rates of TB infection. The regression line shows a slight negative relationship between the two variables.
+The scatterplot shows very clearly that countries that have relatively low per capita GNI also tended to experience the highest rates of TB infections during the 1995 - 2013 time period, while countries having per capita GNI in excess of roughly $38,000 USD consistently experienced relatively low rates of TB infection. The regression line shows a slight negative relationship between the two variables.
 
 We can again use R's __cor__ function to compute the correlation coefficient of the relationship between TB infection rates and per capita GNI:
 
